@@ -1,0 +1,66 @@
+# Radiology Paper Pick Configuration
+
+# Radiology Journals to prioritize
+priority_journals:
+  - "Radiology"
+  - "AJR. American journal of roentgenology"
+  - "European radiology"
+  - "Radiographics : a review publication of the Radiological Society of North America, Inc"
+  - "Radiotherapy and oncology : journal of the European Society for Therapeutic Radiology and Oncology"
+  - "International journal of radiation oncology, biology, physics"
+  - "Medical physics"
+  - "Physics in medicine and biology"
+  - "Journal of nuclear medicine : JNM"
+  - "Journal of the American College of Radiology : JACR"
+
+# AI Assistant Persona
+assistant:
+  name: "Radiology Expert Assistant"
+  role: "An expert AI specialized in radiology and medical imaging."
+  tone: "Professional, concise, and informative."
+  eye_label: "Expert Insight"
+  instruction: "Focus on clinical utility, scan parameters, diagnostic accuracy, and workflow impact. Provide insights for radiographers, radiologists, and medical students."
+
+# Daily Themes and Queries
+# Each theme will be used on the corresponding day of the week (Monday=0, Sunday=6)
+daily_themes:
+  0: # Monday: CT
+    name: "CT (Computed Tomography)"
+    query: '("Tomography, X-Ray Computed"[MeSH] OR "Multidetector Computed Tomography"[MeSH]) AND "Radiology"[Journal]'
+    keywords: ["CT", "Computed Tomography", "Scan"]
+  1: # Tuesday: MRI
+    name: "MRI (Magnetic Resonance Imaging)"
+    query: '"Magnetic Resonance Imaging"[MeSH] AND ("Radiology"[Journal] OR "Magnetic Resonance in Medicine"[Journal])'
+    keywords: ["MRI", "Magnetic Resonance", "Imaging"]
+  2: # Wednesday: Nuclear Medicine
+    name: "Nuclear Medicine & PET"
+    query: '("Nuclear Medicine"[MeSH] OR "Positron-Emission Tomography"[MeSH] OR "Single Photon Emission Computed Tomography Computed Tomography"[MeSH])'
+    keywords: ["PET", "SPECT", "Nuclear Medicine", "Radionuclide"]
+  3: # Thursday: Radiotherapy
+    name: "Radiotherapy"
+    query: '("Radiotherapy"[MeSH] OR "Radiation Oncology"[MeSH] OR "Radiotherapy Planning, Computer-Assisted"[MeSH])'
+    keywords: ["Radiotherapy", "Radiation Oncology", "Brachytherapy"]
+  4: # Friday: IVR
+    name: "Interventional Radiology (IVR)"
+    query: '("Radiology, Interventional"[MeSH] OR "Endovascular Procedures"[MeSH])'
+    keywords: ["IVR", "Interventional", "Angiography", "Embolization"]
+  5: # Saturday: AI & Diagnostic Imaging
+    name: "AI & Image Processing"
+    query: '("Artificial Intelligence"[MeSH] OR "Deep Learning"[MeSH]) AND ("Diagnostic Imaging"[MeSH] OR "Radiology"[MeSH])'
+    keywords: ["AI", "Deep Learning", "Machine Learning", "Segmentation", "Detection"]
+  6: # Sunday: Radiation Protection & Management
+    name: "Radiation Protection & Safety"
+    query: '("Radiation Protection"[MeSH] OR "Radiation Dosage"[MeSH] OR "Occupational Exposure"[MeSH])'
+    keywords: ["Radiation Protection", "Dose", "Safety", "Exposure"]
+
+# WordPress Settings
+wordpress:
+  endpoint: "https://your-wordpress-site.com/wp-json/wp/v2/posts"
+  category_id: 1  # Update this with your actual category ID
+  status: "publish" # Set to "draft" for manual review if needed
+
+# Gemini Settings
+gemini:
+  model: "gemini-2.0-flash" # Use the latest flash model
+  max_output_tokens: 2048
+  temperature: 0.7
