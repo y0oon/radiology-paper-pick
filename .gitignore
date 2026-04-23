@@ -4,6 +4,9 @@
 # Image generation prompts
 image_prompts.md
 
+# Qiita Article Draft
+QIITA_ARTICLE.md
+
 # Python
 __pycache__/
 *.py[cod]
