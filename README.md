@@ -1,41 +1,123 @@
-# Radiology Paper Pick
+# 🏥 Radiology Paper Pick：最新の放射線科論文をAIで自動要約・投稿！
 
-Automated system to fetch the latest radiology papers from PubMed, summarize them using Gemini AI, and post the results to WordPress.
+このツールは、**PubMed（世界最大の医学論文データベース）**から最新の放射線科関連の論文を自動で探し出し、**Googleの最新AI「Gemini」**を使って日本語で要約。さらに、あなたの**WordPressブログ**へ自動で投稿したり、自分のパソコン上で内容を確認したりできるツールです。
 
-## Features
-- **Daily Themes:** Automatically switches between 7 radiology-related themes (CT, MRI, Nuclear Medicine, etc.) based on the day of the week.
-- **AI Summarization:** Uses Gemini AI to generate professional Japanese summaries and insights for healthcare professionals.
-- **Automated Workflow:** Runs daily via GitHub Actions.
-- **WordPress Integration:** Posts formatted HTML directly to your WordPress site.
+専門医、診療放射線技師、医学生の皆さんが、日々更新される膨大な論文を効率よくチェックし、情報発信するのを強力にサポートします。
 
-## Setup
+---
 
-### 1. Requirements
-You will need the following API keys and credentials:
-- **Gemini API Key:** Obtain from [Google AI Studio](https://aistudio.google.com/).
-- **NCBI API Key:** Obtain from your [PubMed](https://pubmed.ncbi.nlm.nih.gov/) account settings (recommended for higher rate limits).
-- **WordPress App Password:** Generate from your WordPress User Profile settings.
+## ✨ このツールができること
 
-### 2. GitHub Secrets
-Register the following secrets in your repository under `Settings > Secrets and variables > Actions`:
-- `GEMINI_API_KEY`
-- `NCBI_API_KEY`
-- `WP_USER`
-- `WP_APP_PASS`
+- **曜日ごとのテーマ設定：** 月曜日はCT、火曜日はMRI…といったように、曜日ごとに検索テーマを自動で切り替えます。
+- **重要論文を賢く抽出：** 有名な雑誌（RadiologyやAJRなど）の論文を優先的にピックアップします。
+- **AIによる専門的要約：** 臨床的な有用性、撮影パラメータ、診断能、ワークフローへの影響などをプロの視点で要約します。
+- **2つの活用スタイル：** 
+  1. **全自動運用：** GitHub Actionsで、毎日自動でWordPressに投稿。
+  2. **手元で実行：** 自分のパソコン（ローカル）で、今すぐ最新の要約を表示。
 
-### 3. Customization
-Edit `config.yaml` to customize:
-- Priority journals
-- Search queries and keywords for each day
-- WordPress endpoint and category ID
-- AI Assistant persona and tone
+---
 
-## Credits / Special Thanks
-The core logic of this system (PubMed scoring and summarization flow) is based on the following project by **yush02084**:
+## 🛠 準備するもの（3つの「鍵」を手に入れよう）
+
+このツールを動かすには、以下のサービスから「APIキー」と呼ばれる連携用のパスワードを取得する必要があります。
+
+### 1. Google Gemini API キー（AIの脳みそ）
+論文を読み、日本語で要約するために必要です。
+1. [Google AI Studio](https://aistudio.google.com/) にアクセスします。
+2. 「Create API key」ボタンを押して、表示された文字列をコピーしてメモしておきましょう。
+   ※ 基本的に無料で利用できる範囲があります。
+
+### 2. NCBI API キー（PubMedへの通行証）
+PubMedから論文データを安定して取得するために必要です。
+1. [PubMed (NCBI)](https://www.ncbi.nlm.nih.gov/) にログインします（Googleアカウントなどで作成可能）。
+2. 右上のユーザー名をクリック ＞ 「Account Settings」を選択。
+3. 下の方にある 「API Key Management」 で 「Create an API Key」 をクリック。
+4. 生成されたキーをメモしておきましょう。
+
+### 3. WordPress アプリケーションパスワード（ブログへ投稿する場合のみ）
+自分のブログに記事を投稿したい場合のみ必要です。
+1. 自分のWordPressサイトの管理画面にログイン。
+2. 「ユーザー」 ＞ 「プロフィール」 を開き、一番下の「新しいアプリケーションパスワード」から発行します。
+
+---
+
+## ⚠️ 【重要】セキュリティに関する注意（必ずお読みください）
+
+**`.env` ファイルには、あなたの貴重なパスワード（APIキー）が記載されています。**
+
+GitHub などのリモートリポジトリ（公開された場所）を使用する場合、**絶対に `.env` ファイルをアップロード（commit/push）しないでください。**
+
+- プロジェクト内の `.gitignore` ファイルに `.env` という記述が含まれていることを必ず確認してください。
+- 万が一、APIキーを公開してしまった場合は、すぐに各サービスの管理画面からキーを削除（無効化）し、新しいキーを発行してください。
+
+---
+
+## 💻 活用パターンA：自分のパソコンで今すぐ動かす（WordPress不要）
+
+「ブログは持っていないけれど、最新の論文要約だけ読みたい！」という方は、自分のパソコンでプログラムを動かすことができます。
+
+### ステップ1：準備
+1. このプロジェクトをダウンロード（zip解凍、または `git clone`）します。
+2. フォルダ内にある `.env.example` をコピーして、ファイル名を `.env` に書き換えます。
+3. `.env` ファイルをメモ帳などで開き、取得したキーを貼り付けます。
+   ```text
+   NCBI_API_KEY=（あなたのPubMedキー）
+   GEMINI_API_KEY=（あなたのGeminiキー）
+   ```
+
+### ステップ2：実行
+1. パソコンのターミナル（WindowsならPowerShellやコマンドプロンプト、Macならターミナル）を開きます。
+2. 以下のコマンドを順番に打ち込みます。
+   ```bash
+   # 必要なプログラムをインストール（初回のみ）
+   pip install -r requirements.txt
+
+   # プログラムを実行！
+   python radiology_paper_pick.py
+   ```
+3. 実行が終わると、画面上に最新の論文要約が表示されます！
+
+---
+
+## 🚀 活用パターンB：GitHubで全自動運用する（WordPress向け）
+
+一度設定すれば、あとは何もしなくても毎日決まった時間にブログが更新されます。
+
+### ステップ1：Secrets（秘密の変数）の登録
+1. あなたのGitHubリポジトリの **Settings** ＞ **Secrets and variables** ＞ **Actions** を開きます。
+2. **New repository secret** ボタンを押し、以下の4つを登録します。
+   - `GEMINI_API_KEY`
+   - `NCBI_API_KEY`
+   - `WP_USER`（WordPressのユーザー名）
+   - `WP_APP_PASS`（WordPressのアプリパスワード）
+
+### ステップ2：動作確認
+1. **Actions** タブをクリック ＞ `Radiology Paper Pick` を選択。
+2. 「Run workflow」ボタンを押して手動実行します。
+3. 成功すれば、数分後にWordPressに記事が登場します！
+
+---
+
+## ⚙️ 自分好みにカスタマイズ（config.yaml）
+
+`config.yaml` ファイルを書き換えるだけで、専門領域に合わせてチューニングできます。
+
+- **priority_journals:** 優先したい雑誌名（Radiology, AJRなど）。
+- **daily_themes:** 曜日ごとのテーマ（CT, MRI, IVRなど）と検索キーワード。
+- **assistant:** AIに「どんな立場の専門家として要約してほしいか」を日本語で指定できます。
+
+---
+
+## 📜 クレジットと感謝
+
+このツールのコアロジックは、**yush02084**氏による以下のプロジェクトをベースに開発されました。
 
 - [medical-paper-summarizer-public (GitHub)](https://github.com/yush02084/medical-paper-summarizer-public)
 
-Special thanks to the original developer for sharing their wisdom.
+医学論文の自動要約という素晴らしい知恵を共有してくださったオリジナル作者に、深く感謝申し上げます。
 
-## License
-Distributed under the MIT License. See `LICENSE` (if any) for more information.
+---
+
+## ⚖️ ライセンス
+このプロジェクトは MITライセンスの下で公開されています。
+個人の学習や研究、ブログ運営に自由にご活用ください。

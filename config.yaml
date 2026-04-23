@@ -1,6 +1,6 @@
 # Radiology Paper Pick Configuration
 
-# Radiology Journals to prioritize
+# 1. 優先して抽出したい雑誌（Radiology Journals）
 priority_journals:
   - "Radiology"
   - "AJR. American journal of roentgenology"
@@ -12,55 +12,66 @@ priority_journals:
   - "Physics in medicine and biology"
   - "Journal of nuclear medicine : JNM"
   - "Journal of the American College of Radiology : JACR"
+  - "Japanese journal of radiology"
+  - "Radiological physics and technology"
+  - "Journal of radiation research"
+  - "Radiation oncology (London, England)"
 
-# AI Assistant Persona
+# 2. AI アシスタントの設定
 assistant:
   name: "Radiology Expert Assistant"
   role: "An expert AI specialized in radiology and medical imaging."
   tone: "Professional, concise, and informative."
   eye_label: "Expert Insight"
-  instruction: "Focus on clinical utility, scan parameters, diagnostic accuracy, and workflow impact. Provide insights for radiographers, radiologists, and medical students."
+  instruction: "臨床的な有用性、撮影パラメータ、診断能、ワークフローへの影響に焦点を当てて要約してください。診療放射線技師、放射線科医、医学生にとって役立つ洞察を提供してください。回答はすべて日本語でお願いします。"
 
-# Daily Themes and Queries
-# Each theme will be used on the corresponding day of the week (Monday=0, Sunday=6)
+# 3. 曜日ごとのテーマと検索条件
+# image_id: WordPressのメディアライブラリにある画像IDを入力してください（0の場合はアイキャッチなし）
 daily_themes:
-  0: # Monday: CT
+  0: # 月曜日: CT
     name: "CT (Computed Tomography)"
-    query: '("Tomography, X-Ray Computed"[MeSH] OR "Multidetector Computed Tomography"[MeSH]) AND "Radiology"[Journal]'
+    query: '("CT"[Title] OR "Computed Tomography"[Title])'
     keywords: ["CT", "Computed Tomography", "Scan"]
-  1: # Tuesday: MRI
+    image_id: 0
+  1: # 火曜日: MRI
     name: "MRI (Magnetic Resonance Imaging)"
-    query: '"Magnetic Resonance Imaging"[MeSH] AND ("Radiology"[Journal] OR "Magnetic Resonance in Medicine"[Journal])'
+    query: '("MRI"[Title] OR "Magnetic Resonance"[Title])'
     keywords: ["MRI", "Magnetic Resonance", "Imaging"]
-  2: # Wednesday: Nuclear Medicine
+    image_id: 0
+  2: # 水曜日: 核医学
     name: "Nuclear Medicine & PET"
-    query: '("Nuclear Medicine"[MeSH] OR "Positron-Emission Tomography"[MeSH] OR "Single Photon Emission Computed Tomography Computed Tomography"[MeSH])'
+    query: '("PET"[Title] OR "SPECT"[Title] OR "Nuclear Medicine"[Title])'
     keywords: ["PET", "SPECT", "Nuclear Medicine", "Radionuclide"]
-  3: # Thursday: Radiotherapy
+    image_id: 0
+  3: # 木曜日: 放射線治療
     name: "Radiotherapy"
-    query: '("Radiotherapy"[MeSH] OR "Radiation Oncology"[MeSH] OR "Radiotherapy Planning, Computer-Assisted"[MeSH])'
+    query: '("Radiotherapy"[Title] OR "Radiation Oncology"[Title])'
     keywords: ["Radiotherapy", "Radiation Oncology", "Brachytherapy"]
-  4: # Friday: IVR
+    image_id: 0
+  4: # 金曜日: IVR（画像下治療）
     name: "Interventional Radiology (IVR)"
-    query: '("Radiology, Interventional"[MeSH] OR "Endovascular Procedures"[MeSH])'
+    query: '("Interventional"[Title] OR "Angiography"[Title] OR "Embolization"[Title])'
     keywords: ["IVR", "Interventional", "Angiography", "Embolization"]
-  5: # Saturday: AI & Diagnostic Imaging
+    image_id: 0
+  5: # 土曜日: AI・画像診断支援
     name: "AI & Image Processing"
-    query: '("Artificial Intelligence"[MeSH] OR "Deep Learning"[MeSH]) AND ("Diagnostic Imaging"[MeSH] OR "Radiology"[MeSH])'
+    query: '("Artificial Intelligence"[Title] OR "Deep Learning"[Title] OR "Machine Learning"[Title])'
     keywords: ["AI", "Deep Learning", "Machine Learning", "Segmentation", "Detection"]
-  6: # Sunday: Radiation Protection & Management
+    image_id: 0
+  6: # 日曜日: 放射線防護・管理
     name: "Radiation Protection & Safety"
-    query: '("Radiation Protection"[MeSH] OR "Radiation Dosage"[MeSH] OR "Occupational Exposure"[MeSH])'
+    query: '("Radiation Protection"[Title] OR "Radiation Dose"[Title])'
     keywords: ["Radiation Protection", "Dose", "Safety", "Exposure"]
+    image_id: 0
 
-# WordPress Settings
+# 4. WordPress 投稿設定
 wordpress:
-  endpoint: "https://your-wordpress-site.com/wp-json/wp/v2/posts"
-  category_id: 1  # Update this with your actual category ID
-  status: "publish" # Set to "draft" for manual review if needed
+  endpoint: "https://your-wordpress-site.com/wp-json/wp/v2/posts" # あなたのサイトのURLに書き換えてください
+  category_id: 230 # 「論文」カテゴリーのID
+  status: "publish" # "publish"（即公開）か "draft"（下書き）
 
-# Gemini Settings
+# 5. Gemini AI 設定
 gemini:
-  model: "gemini-2.0-flash" # Use the latest flash model
+  model: "gemini-1.5-flash"
   max_output_tokens: 2048
   temperature: 0.7

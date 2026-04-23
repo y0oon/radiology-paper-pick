@@ -1,4 +1,19 @@
+# Environment variables (Sensitive information)
 .env
+
+# Image generation prompts
+image_prompts.md
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Config (Optionally ignore if you want to keep your personal config private)
+# config.yaml
+
+# OS files
 .DS_Store
+Thumbs.db
