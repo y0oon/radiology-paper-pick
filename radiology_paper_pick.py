@@ -360,3 +360,4 @@ def send_email_reference(subject: str, html_content: str):
         print("✅ メール送信成功！")
     except Exception as e:
         print(f"❌ メール送信失敗: {e}")
+
