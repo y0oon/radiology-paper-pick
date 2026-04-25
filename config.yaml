@@ -19,10 +19,10 @@ priority_journals:
 
 # 2. AI アシスタントの設定
 assistant:
-  name: "Radiology Expert Assistant"
-  role: "An expert AI specialized in radiology and medical imaging."
-  tone: "Professional, concise, and informative."
-  eye_label: "Expert Insight"
+  name: "Radiology AI"
+  role: "An AI system specialized in radiology and medical imaging."
+  tone: "Professional and objective."
+  eye_label: "Analysis"
   instruction: "臨床的な有用性、撮影パラメータ、診断能、ワークフローへの影響に焦点を当てて要約してください。診療放射線技師、放射線科医、医学生にとって役立つ洞察を提供してください。回答はすべて日本語でお願いします。"
 
 # 3. 曜日ごとのテーマと検索条件
@@ -56,7 +56,8 @@ daily_themes:
   5: # 土曜日: AI・画像診断支援
     name: "AI & Image Processing"
     query: '("Artificial Intelligence"[Title] OR "Deep Learning"[Title] OR "Machine Learning"[Title])'
-    keywords: ["AI", "Deep Learning", "Machine Learning", "Segmentation", "Detection"]
+    keywords:
+      ["AI", "Deep Learning", "Machine Learning", "Segmentation", "Detection"]
     image_id: 0
   6: # 日曜日: 放射線防護・管理
     name: "Radiation Protection & Safety"
@@ -66,12 +67,19 @@ daily_themes:
 
 # 4. WordPress 投稿設定
 wordpress:
-  endpoint: "https://your-wordpress-site.com/wp-json/wp/v2/posts" # あなたのサイトのURLに書き換えてください
-  category_id: 230 # 「論文」カテゴリーのID
-  status: "publish" # "publish"（即公開）か "draft"（下書き）
+  endpoint: "https://www.raditech-fire.com/wp-json/wp/v2/posts"
+  category_id: 230
+  status: "publish"
 
-# 5. Gemini AI 設定
+# 5. （参考）メール送信設定 - 使用する場合は以下の値を設定し、スクリプト末尾の関数を呼び出してください
+email_settings:
+  to: "your-email@example.com"
+  from: "your-gmail@gmail.com"
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+
+# 6. Gemini AI 設定
 gemini:
-  model: "gemini-1.5-flash"
+  model: "gemini-2.0-flash"
   max_output_tokens: 2048
   temperature: 0.7

@@ -1,85 +1,61 @@
 """
 🏥 Radiology Paper Pick - 放射線科論文自動ピックアップシステム
 --------------------------------------------------
-このプログラムは、医学論文データベース「PubMed」から最新の放射線科関連の論文を取得し、
-GoogleのAI（Gemini）を使って日本語で要約を作成、さらにWordPressへ自動投稿するシステムです。
+PubMedから最新の放射線科論文を取得し、Geminiで要約、WordPressへ自動投稿します。
 """
 
-import os            # OSの機能（ファイルパス操作や環境変数の取得）を使うためのライブラリ
-import json          # JSON形式のデータを扱うためのライブラリ
-import yaml          # 設定ファイル（YAML）を読み込むためのライブラリ
-import requests      # インターネット経由でデータを取得（HTTPリクエスト）するためのライブラリ
-import datetime      # 日付や時刻を扱うためのライブラリ
-import time          # 処理を一時停止（スリープ）させるためのライブラリ
-import google.generativeai as genai  # Google Gemini AIを使うための公式ライブラリ
-import xml.etree.ElementTree as ET   # XML形式のデータ（PubMedの応答）を解析するためのライブラリ
-from typing import List, Dict        # コードの可読性を高めるための型ヒント（リストや辞書の指定）
-from dotenv import load_dotenv       # .envファイルから環境変数を読み込むためのライブラリ
+import os
+import json
+import yaml
+import requests
+import datetime
+import time
+import xml.etree.ElementTree as ET
+from typing import List, Dict, Optional
+from dotenv import load_dotenv
+import google.generativeai as genai
 
 # ==========================================
 # 1. 設定の読み込みと初期化 ⚙️
 # ==========================================
 
-# 1-0. .envファイルからAPIキーなどを読み込みます
-load_dotenv()
+# .envから強制的に最新の設定を読み込み
+load_dotenv(override=True)
 
-# 1-1. config.yaml（設定ファイル）を読み込みます
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
-# 1-2. 環境変数から機密情報（APIキーなど）を取り出します
 NCBI_API_KEY = os.environ.get("NCBI_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 WP_USER = os.environ.get("WP_USER")
 WP_APP_PASS = os.environ.get("WP_APP_PASS")
 
-# 1-3. Gemini AIの準備をします
 def initialize_gemini():
+    """Gemini AIの初期化とモデルの自動選択"""
+    if not GEMINI_API_KEY:
+        print("⚠️ GEMINI_API_KEY が設定されていません。")
+        return None
+        
     genai.configure(api_key=GEMINI_API_KEY)
     
     try:
-        all_models = list(genai.list_models())
-        available_models = [m.name for m in all_models if "generateContent" in m.supported_generation_methods]
-        
-        target_model = None
-        for m_name in available_models:
-            low_name = m_name.lower()
-            if "1.5-flash" in low_name and "2.0" not in low_name and "2.5" not in low_name:
-                target_model = m_name
-                break
-        
-        if not target_model:
-            for m_name in available_models:
-                if "1.5-pro" in m_name.lower():
-                    target_model = m_name
-                    break
-
-        if not target_model:
-            priority_list = ["models/gemini-1.0-pro", "models/gemini-pro"]
-            for p in priority_list:
-                if p in available_models:
-                    target_model = p
-                    break
-        
-        if not target_model:
-            safe_models = [m for m in available_models if "2.0" not in m and "2.5" not in m]
-            target_model = safe_models[0] if safe_models else available_models[0]
-            
-        print(f"DEBUG: 自動選択されたモデル: {target_model}")
-        return genai.GenerativeModel(target_model)
-        
+        # 最新のモデル（2.0-flash）を最優先で使用
+        model_name = config.get("gemini", {}).get("model", "gemini-2.0-flash")
+        full_model_name = f"models/{model_name}" if not model_name.startswith("models/") else model_name
+        return genai.GenerativeModel(full_model_name)
     except Exception as e:
         print(f"Gemini初期化エラー: {e}")
-        return genai.GenerativeModel("models/gemini-pro")
+        return genai.GenerativeModel("models/gemini-2.0-flash")
 
 model = initialize_gemini()
 
 # ==========================================
-# 2. PubMed（論文データベース）からのデータ取得 📚
+# 2. 論文データの取得 📚
 # ==========================================
 
-def fetch_pubmed_ids(query: str, max_results: int = 20) -> List[str]:
+def fetch_pubmed_ids(query: str, max_results: int = 15) -> List[str]:
+    """検索クエリに合致するPMIDのリストを取得"""
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     params = {
         "db": "pubmed",
@@ -91,12 +67,16 @@ def fetch_pubmed_ids(query: str, max_results: int = 20) -> List[str]:
     if NCBI_API_KEY:
         params["api_key"] = NCBI_API_KEY
     
-    response = requests.get(base_url, params=params)
-    response.raise_for_status()
-    data = response.json()
-    return data.get("esearchresult", {}).get("idlist", [])
+    try:
+        response = requests.get(base_url, params=params, timeout=20)
+        response.raise_for_status()
+        return response.json().get("esearchresult", {}).get("idlist", [])
+    except Exception as e:
+        print(f"PubMed ID取得失敗: {e}")
+        return []
 
 def fetch_pubmed_details(id_list: List[str]) -> List[Dict]:
+    """PMIDリストから論文の詳細（タイトル、抄録等）を取得"""
     if not id_list:
         return []
         
@@ -109,45 +89,42 @@ def fetch_pubmed_details(id_list: List[str]) -> List[Dict]:
     if NCBI_API_KEY:
         params["api_key"] = NCBI_API_KEY
         
-    response = requests.get(base_url, params=params)
-    response.raise_for_status()
-    
-    root = ET.fromstring(response.content)
-    papers = []
-    for article in root.findall(".//PubmedArticle"):
-        title = article.find(".//ArticleTitle").text if article.find(".//ArticleTitle") is not None else "No Title"
-        journal = article.find(".//Title").text if article.find(".//Title") is not None else "No Journal"
-        abstract_node = article.find(".//AbstractText")
-        abstract = abstract_node.text if abstract_node is not None else "No Abstract"
-        pmid = article.find(".//PMID").text
+    try:
+        response = requests.get(base_url, params=params, timeout=30)
+        response.raise_for_status()
         
-        papers.append({
-            "pmid": pmid,
-            "title": title,
-            "journal": journal,
-            "abstract": abstract,
-            "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-        })
-    return papers
-
-# ==========================================
-# 3. 論文のスコアリング（重要度の判定） ⚖️
-# ==========================================
+        root = ET.fromstring(response.content)
+        papers = []
+        for article in root.findall(".//PubmedArticle"):
+            title = article.find(".//ArticleTitle").text if article.find(".//ArticleTitle") is not None else "No Title"
+            journal = article.find(".//Title").text if article.find(".//Title") is not None else "No Journal"
+            abstract_node = article.find(".//AbstractText")
+            abstract = abstract_node.text if abstract_node is not None else "No Abstract"
+            pmid = article.find(".//PMID").text
+            
+            papers.append({
+                "pmid": pmid,
+                "title": title,
+                "journal": journal,
+                "abstract": abstract,
+                "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+            })
+        return papers
+    except Exception as e:
+        print(f"PubMed詳細取得失敗: {e}")
+        return []
 
 def score_paper(paper: Dict, priority_journals: List[str], keywords: List[str]) -> float:
-    """
-    特定の雑誌やキーワードが含まれている場合にスコアを加算し、紹介する優先順位を決めます。
-    """
+    """論文の重要度をスコアリング"""
     score = 0.0
-    # 安全に文字列として取得
     journal = str(paper.get("journal") or "").lower()
     title = str(paper.get("title") or "").lower()
     
-    # 1. 優先雑誌
+    # 優先雑誌（Radiologyなど）への加点
     if any(pj.lower() in journal for pj in priority_journals):
         score += 10.0
     
-    # 2. キーワード
+    # テーマキーワードへの加点
     for kw in keywords:
         if kw.lower() in title:
             score += 2.0
@@ -155,15 +132,19 @@ def score_paper(paper: Dict, priority_journals: List[str], keywords: List[str]) 
     return score
 
 # ==========================================
-# 4. AIによる要約生成 🤖
+# 3. AIによる要約生成 🤖
 # ==========================================
 
-def generate_ai_summary(paper: Dict, theme_name: str, assistant_config: Dict) -> Dict:
-    prompt = f"""You are a medical expert specialized in radiology.
-Your task: Summarize the provided medical paper abstract in JAPANESE for doctors and radiographers.
+def generate_ai_summary(paper: Dict, theme_name: str, assistant_config: Dict) -> Optional[Dict]:
+    """Geminiを使用して論文を日本語要約"""
+    if not model:
+        return None
+
+    prompt = f"""You are {assistant_config['name']}, {assistant_config['role']}.
+Your task: Summarize the provided medical paper abstract in JAPANESE.
 
 [MANDATORY REQUIREMENTS]
-1. Respond ONLY in JAPANESE. (必ず日本語で回答してください)
+1. Respond ONLY in JAPANESE.
 2. Create a catchy JAPANESE title.
 3. Provide a summary in JAPANESE (maximum 3 bullet points).
 4. Provide expert insight in JAPANESE (approx. 100 characters).
@@ -173,9 +154,9 @@ Your task: Summarize the provided medical paper abstract in JAPANESE for doctors
 [Output Format (JSON)]
 {{
   "jp_title": "日本語のタイトル",
-  "summary": ["日本語のポイント1", "日本語のポイント2", "日本語のポイント3"],
-  "eye_content": "日本語の専門的コメント",
-  "seo_description": "日本語のSEO説明文",
+  "summary": ["ポイント1", "ポイント2", "ポイント3"],
+  "eye_content": "専門的コメント",
+  "seo_description": "SEO説明文",
   "keywords": ["キーワード1", "キーワード2"]
 }}
 
@@ -184,92 +165,96 @@ Title: {paper['title']}
 Journal: {paper['journal']}
 Abstract: {paper['abstract']}
 """
-    try:
+    # 429エラー対策のリトライループ
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-            res_text = response.text
-        except Exception:
-            response = model.generate_content(prompt)
-            res_text = response.text
-
-        if "```" in res_text:
-            res_text = res_text.split("```")
-            for part in res_text:
-                if "{" in part and "}" in part:
-                    res_text = part.replace("json", "").strip()
-                    break
-        
-        import re
-        match = re.search(r"\{.*\}", res_text, re.DOTALL)
-        if match:
-            res_text = match.group(0)
-        
-        res_text = res_text.replace("\n", " ").replace("\r", " ").replace("\t", " ")
-        result = json.loads(res_text, strict=False)
-        
-        if "summary" in result:
-            if isinstance(result["summary"], str):
+            response = model.generate_content(
+                prompt, 
+                generation_config={"response_mime_type": "application/json"}
+            )
+            result = json.loads(response.text, strict=False)
+            
+            if isinstance(result.get("summary"), str):
                 result["summary"] = [result["summary"]]
-        
-        if "jp_title" in result and "summary" in result:
-            return result
-        return None
+                
+            if "jp_title" in result and "summary" in result:
+                return result
+            return None
 
-    except Exception as e:
-        print(f"AI Generation Error for {paper['pmid']}: {e}")
-        return None
+        except Exception as e:
+            if "429" in str(e):
+                wait_time = (attempt + 1) * 35
+                print(f"⚠️ 制限に達しました。{wait_time}秒待機して再試行します... ({attempt+1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                print(f"AI要約失敗 (PMID {paper['pmid']}): {e}")
+                break
+    return None
 
 # ==========================================
-# 5. HTML作成 🎨
+# 4. HTML・コンテンツ作成 🎨
 # ==========================================
 
 def construct_html(summaries: List[Dict], theme_name: str, assistant_config: Dict) -> str:
+    """WordPress投稿用のHTMLを構築（Gutenbergブロック対応）"""
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    html = "<!-- wp:html -->\n<div class=\"paper-pick-container\" style=\"font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto;\">\n"
     
-    header_style = "background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: 30px; border-radius: 12px; margin-bottom: 40px;"
+    html = "<!-- wp:html -->\n"
+    html += "<div class=\"paper-pick-container\" style=\"font-family: 'Helvetica Neue', Arial, sans-serif; color: #333; line-height: 1.8; max-width: 850px; margin: 0 auto;\">\n"
+    
+    header_style = "background: linear-gradient(135deg, #1a2a6c 0%, #b21f1f 50%, #fdbb2d 100%); color: white; padding: 40px; border-radius: 15px; margin-bottom: 40px; box-shadow: 0 10px 20px rgba(0,0,0,0.1);"
     html += f"""<div class="hero-card" style="{header_style}">
-        <div style="font-size: 1.8em; font-weight: bold; margin-bottom: 10px;">{assistant_config['name']}'s Select</div>
-        <div style="font-size: 1.4em; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 10px; margin-bottom: 15px;">本日のテーマ: {theme_name} 最新論文</div>
-        <div style="font-size: 1em; opacity: 0.9;">{theme_name}に関する注目の{len(summaries)}論文をピックアップしました（{today} 更新）</div>
+        <div style="font-size: 2.2em; font-weight: bold; margin-bottom: 10px;">Recommended Papers</div>
+        <div style="font-size: 1.5em; border-bottom: 2px solid rgba(255,255,255,0.4); padding-bottom: 10px; margin-bottom: 15px;">本日のテーマ: {theme_name}</div>
+        <div style="font-size: 1.1em; opacity: 0.95;">最新の重要論文{len(summaries)}件をピックアップ（{today} 更新）</div>
     </div>"""
 
     for item in summaries:
         paper, ai = item["paper"], item["ai_data"]
-        html += f"""<div class="paper-item" style="background: white; border-left: 6px solid #2c3e50; padding: 25px; margin-bottom: 35px; border: 1px solid #eee; border-radius: 8px;">
-            <div style="font-size: 1.4em; font-weight: bold; color: #2c3e50; margin-bottom: 15px;">{ai['jp_title']}</div>
-            <div style="font-size: 0.85em; color: #7f8c8d; margin-bottom: 15px;">掲載誌: <b>{paper['journal']}</b> | <a href="{paper['url']}" target="_blank" style="color: #3498db;">[PubMedで確認]</a></div>
-            <ul style="margin-bottom: 20px; padding-left: 20px;">"""
+        html += f"""<div class="paper-item" style="background: #fff; border: 1px solid #e0e0e0; border-left: 8px solid #1a2a6c; padding: 30px; margin-bottom: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="font-size: 1.6em; font-weight: bold; color: #1a2a6c; margin-bottom: 15px; line-height: 1.4;">{ai['jp_title']}</div>
+            <div style="font-size: 0.9em; color: #666; margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                📖 <b>{paper['journal']}</b> | 🔗 <a href="{paper['url']}" target="_blank" style="color: #3498db; text-decoration: none;">PubMed原文を表示</a>
+            </div>
+            <ul style="margin-bottom: 25px; padding-left: 20px; list-style-type: square;">"""
         for s in ai["summary"]:
-            html += f"<li style=\"margin-bottom: 8px;\">{s}</li>"
+            html += f"<li style=\"margin-bottom: 10px;\">{s}</li>"
         html += f"""</ul>
-            <div style="background: #fdf2f2; padding: 18px; border-radius: 6px; border: 1px solid #fadbd8;">
-                <div style="font-weight: bold; color: #e74c3c; margin-bottom: 5px;">💡 {assistant_config['eye_label']}</div>
-                <div style="font-style: italic; color: #555;">{ai['eye_content']}</div>
+            <div style="background: #fff9db; padding: 20px; border-radius: 8px; border: 1px solid #ffe066;">
+                <div style="font-weight: bold; color: #f08c00; margin-bottom: 8px; font-size: 1.1em;">💡 {assistant_config['eye_label']}</div>
+                <div style="font-style: italic; color: #444;">{ai['eye_content']}</div>
             </div>
         </div>"""
     
-    html += "</div><!-- /wp:html -->"
+    html += """<div style="text-align: center; margin-top: 50px;">
+        <a href="/" class="rdt-footer" style="display: inline-block; padding: 15px 30px; background: #333; color: white; text-decoration: none; border-radius: 30px; font-weight: bold; transition: 0.3s;">Back to Home</a>
+    </div>"""
+    
+    html += "\n</div>\n<!-- /wp:html -->"
     return html
 
 # ==========================================
-# 6. WordPress投稿 🌐
+# 5. WordPress投稿 🌐
 # ==========================================
 
-def post_to_wordpress(title: str, content: str, excerpt: str = "", keywords: List[str] = None, featured_image_id: int = None):
+def post_to_wordpress(title: str, content: str, excerpt: str = ""):
+    """WordPress REST APIを使用して投稿を作成"""
     if not (WP_USER and WP_APP_PASS):
-        print("WordPressの認証情報が設定されていません。")
+        print("❌ 認証情報が設定されていません。")
         return
         
-    auth = (WP_USER, WP_APP_PASS)
     endpoint = config["wordpress"]["endpoint"]
-    base_url = endpoint.split("/wp-json/")[0]
-    headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Content-Type": "application/json"
+    }
+    auth = (WP_USER, WP_APP_PASS)
 
-    print("🔑 WordPress認証テスト中...")
+    print(f"🔑 WordPress認証テスト中... ({WP_USER})")
     try:
-        me_url = f"{base_url}/wp-json/wp/v2/users/me"
-        test_res = requests.get(me_url, auth=auth, headers=headers, timeout=15)
+        base_url = endpoint.split("/wp-json/")[0]
+        test_res = requests.get(f"{base_url}/wp-json/wp/v2/users/me", auth=auth, headers=headers, timeout=15)
         if test_res.status_code != 200:
             print(f"❌ 認証失敗 (Status: {test_res.status_code})")
             return
@@ -281,30 +266,24 @@ def post_to_wordpress(title: str, content: str, excerpt: str = "", keywords: Lis
     data = {
         "title": title,
         "content": content,
-        "status": "draft",
-        "categories": [config["wordpress"]["category_id"]]
+        "status": config["wordpress"].get("status", "draft"),
+        "categories": [config["wordpress"]["category_id"]],
+        "excerpt": excerpt
     }
     
-    print("📝 投稿テスト中...")
+    print("📝 投稿処理を実行中...")
     try:
-        response = requests.post(endpoint, data=json.dumps(data), auth=auth, headers=headers, timeout=30)
-        if response.status_code == 201:
-            print("✅ 投稿成功！")
-            post_id = response.json().get("id")
-            update_data = {"status": config["wordpress"].get("status", "publish")}
-            if excerpt: update_data["excerpt"] = excerpt
-            if featured_image_id and int(featured_image_id) > 0: update_data["featured_media"] = int(featured_image_id)
-            
-            update_url = f"{endpoint}/{post_id}"
-            requests.post(update_url, data=json.dumps(update_data), auth=auth, headers=headers, timeout=30)
-            print(f"🎉 最終公開完了")
+        response = requests.post(endpoint, json=data, auth=auth, headers=headers, timeout=30)
+        if response.status_code in [200, 201]:
+            print(f"✅ 投稿成功！ ID: {response.json().get('id')}")
+            print(f"🔗 URL: {response.json().get('link')}")
         else:
             print(f"❌ 投稿失敗: {response.status_code} - {response.text[:200]}")
     except Exception as e:
         print(f"❌ 通信エラー: {e}")
 
 # ==========================================
-# 7. メイン実行 🚀
+# 6. メイン実行 🚀
 # ==========================================
 
 def main():
@@ -313,7 +292,9 @@ def main():
     print(f"=== 本日のテーマ: {theme['name']} ===")
     
     ids = fetch_pubmed_ids(theme["query"])
-    if not ids: return
+    if not ids:
+        print("論文が見つかりませんでした。")
+        return
     
     papers = fetch_pubmed_details(ids)
     for p in papers:
@@ -321,22 +302,61 @@ def main():
     
     papers.sort(key=lambda x: x["score"], reverse=True)
     valid_summaries = []
+    
     for p in papers[:5]:
-        print(f"要約生成中: {p['title'][:50]}...")
+        print(f"要約生成中: {p['title'][:60]}...")
         ai_data = generate_ai_summary(p, theme["name"], config["assistant"])
         if ai_data:
             valid_summaries.append({"paper": p, "ai_data": ai_data})
-        time.sleep(15) 
+            # 無料枠のレート制限回避のため、長めに待機
+            time.sleep(35) 
         
-    if not valid_summaries: return
+    if not valid_summaries:
+        print("有効な要約を生成できませんでした。")
+        return
 
     html = construct_html(valid_summaries, theme["name"], config["assistant"])
     main_ai = valid_summaries[0]["ai_data"]
     
     today_str = datetime.datetime.now().strftime("%m/%d")
-    title = f"【{today_str}】{theme['name']} 放射線科最新論文ピックアップ (Top 5)"
+    title = f"【{today_str}】{theme['name']} 放射線科最新論文ピックアップ (Top {len(valid_summaries)})"
     
-    post_to_wordpress(title, html, main_ai.get("seo_description", ""), main_ai.get("keywords", []), theme.get("image_id"))
+    post_to_wordpress(title, html, main_ai.get("seo_description", ""))
 
 if __name__ == "__main__":
     main()
+
+# ==========================================
+# 🎁 以下は参考用コードです（通常は実行されません）
+# ==========================================
+def send_email_reference(subject: str, html_content: str):
+    """【参考】HTMLメールを送信する関数"""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    email_cfg = config.get("email_settings", {})
+    email_to = email_cfg.get("to")
+    email_from = email_cfg.get("from")
+    smtp_server = email_cfg.get("smtp_server")
+    smtp_port = email_cfg.get("smtp_port")
+    smtp_pass = os.environ.get("SMTP_PASS")
+
+    if not (email_from and smtp_pass):
+        print("❌ メールの認証情報（email_from, SMTP_PASS）が設定されていません。")
+        return
+
+    msg = MIMEMultipart()
+    msg["From"] = email_from
+    msg["To"] = email_to
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html_content, "html"))
+
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(email_from, smtp_pass)
+            server.send_message(msg)
+        print("✅ メール送信成功！")
+    except Exception as e:
+        print(f"❌ メール送信失敗: {e}")
